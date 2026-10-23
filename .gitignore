@@ -1,0 +1,47 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# C++ Build Artifacts & Binaries
+*.o
+*.obj
+*.exe
+*.out
+*.app
+*.so
+*.dylib
+*.a
+
+# Environments & Virtualenv
+.env
+.env.*
+!.env.example
+venv/
+.venv/
+env/
+ENV/
+
+# Testing & Coverage
+.pytest_cache/
+.coverage
+htmlcov/
+*.log
+
+# Execution & Sandbox Runtime Workspaces
+workspace/
+temp/
+tmp/
+*.zip
+!tests/fixtures/**
+
+# IDE & Editor configs
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Operating System Files
+.DS_Store
+Thumbs.db
+desktop.ini

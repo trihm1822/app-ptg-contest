@@ -79,5 +79,95 @@ def check_sandbox():
         raise typer.Exit(code=1)
 
 
+@app.command(name="generate-code")
+def generate_code(
+    problem: str = typer.Option(
+        ...,
+        "--problem",
+        "-p",
+        help="Path to problem statement Markdown file (e.g. tests/fixtures/problems/01_two_sum.md)",
+    ),
+    output_dir: str = typer.Option(
+        None,
+        "--output-dir",
+        "-o",
+        help="Directory to store the 5 generated artifacts (default: output/<problem_id>)",
+    ),
+    model: str = typer.Option(
+        "gemini-3.8-flash",
+        "--model",
+        "-m",
+        help="LLM model identifier (e.g. gemini-3.8-flash, gemini-2.5-flash)",
+    ),
+    temperature: float = typer.Option(
+        0.2,
+        "--temperature",
+        "-t",
+        help="Sampling temperature for code generation",
+    ),
+    no_cache: bool = typer.Option(
+        False,
+        "--no-cache",
+        help="Bypass local SHA-256 response cache and force fresh generation",
+    ),
+    mock: bool = typer.Option(
+        False,
+        "--mock",
+        help="Use deterministic offline Mock LLM provider without calling remote API",
+    ),
+):
+    """Generate C++ solutions, generator, validator, and explanation from a problem statement."""
+    from pathlib import Path
+    from rich.table import Table
+    from ptg.core.code_generator import CodeGenerator
+
+    problem_path = Path(problem)
+    if not problem_path.exists():
+        console.print(f"[bold red]Error:[/] Problem file not found: [yellow]{problem_path}[/]")
+        raise typer.Exit(code=1)
+
+    target_out_dir = Path(output_dir) if output_dir else Path("output") / problem_path.stem
+
+    console.print(
+        f"[cyan]Initiating code generation for problem:[/] [bold]{problem_path.name}[/] "
+        f"([dim]model={model}, mock={mock}[/])"
+    )
+
+    generator = CodeGenerator()
+    try:
+        with console.status(f"[bold yellow]Generating code with {'Mock' if mock else model}..."):
+            result, files = generator.generate_from_file(
+                problem_path=problem_path,
+                output_dir=target_out_dir,
+                model_name=model,
+                temperature=temperature,
+                use_cache=not no_cache,
+                use_mock=mock,
+            )
+    except Exception as e:
+        console.print(f"[bold red]Generation failed:[/] {e}")
+        raise typer.Exit(code=1)
+
+    # Print summary table
+    table = Table(title="[bold green]LLM Generation Summary[/]", show_header=True)
+    table.add_column("Metric", style="cyan")
+    table.add_column("Value", style="bold white")
+
+    table.add_row("Problem ID", result.problem_id)
+    table.add_row("Model Used", result.model_name)
+    table.add_row("Cache Status", "[green]HIT (Local Disk)[/]" if result.is_cached else "[yellow]MISS (API Query)[/]")
+    if result.cache_key:
+        table.add_row("Cache Key (SHA-256)", f"[dim]{result.cache_key[:16]}...[/]")
+    table.add_row("Latency", f"{result.usage.latency_ms:.1f} ms")
+    table.add_row("Tokens (Prompt / Candidates / Total)", f"{result.usage.prompt_tokens} / {result.usage.candidates_tokens} / {result.usage.total_tokens}")
+    table.add_row("Estimated Cost", f"${result.usage.estimated_cost_usd:.6f} USD")
+
+    console.print(table)
+
+    console.print("\n[bold green]✓ 5 Artifacts generated successfully in:[/] [yellow]" + str(target_out_dir) + "[/]")
+    for fname, fpath in files.items():
+        console.print(f"  [green]•[/] [bold]{fname}[/]: {fpath} ([dim]{fpath.stat().st_size} bytes[/])")
+
+
 if __name__ == "__main__":
     app()

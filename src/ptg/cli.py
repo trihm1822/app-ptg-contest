@@ -301,5 +301,145 @@ def run_differential(
         raise typer.Exit(code=1)
 
 
+@app.command(name="run-all")
+def run_all(
+    problem: str = typer.Option(
+        ...,
+        "--problem",
+        "-p",
+        help="Path to problem statement Markdown file (e.g. tests/fixtures/problems/01_two_sum.md)",
+    ),
+    output_zip: str = typer.Option(
+        None,
+        "--output-zip",
+        "-z",
+        help="Path to final export ZIP archive (default: output/<problem_id>_export.zip)",
+    ),
+    count: int = typer.Option(
+        5,
+        "--count",
+        "-c",
+        help="Number of testcases to generate and evaluate",
+    ),
+    subtask: int = typer.Option(
+        1,
+        "--subtask",
+        "-s",
+        help="Subtask ID passed to generator (argv[2])",
+    ),
+    seed: int = typer.Option(
+        1000,
+        "--seed",
+        help="Initial random seed",
+    ),
+    model: str = typer.Option(
+        "gemini-3.8-flash",
+        "--model",
+        "-m",
+        help="LLM model identifier (e.g. gemini-3.8-flash, gemini-2.5-flash)",
+    ),
+    temperature: float = typer.Option(
+        0.2,
+        "--temperature",
+        "-t",
+        help="Sampling temperature for code generation",
+    ),
+    no_cache: bool = typer.Option(
+        False,
+        "--no-cache",
+        help="Bypass local SHA-256 response cache and force fresh generation",
+    ),
+    mock: bool = typer.Option(
+        False,
+        "--mock",
+        help="Use deterministic offline Mock LLM provider without calling remote API",
+    ),
+):
+    """Execute complete end-to-end pipeline: Ingest MD -> LLM Gen -> Sandbox Diff -> Package ZIP."""
+    from pathlib import Path
+    from rich.table import Table
+    from ptg.core.pipeline import EndToEndPipeline
+    from ptg.models.testcase import TestcaseStatus
+
+    problem_path = Path(problem)
+    if not problem_path.exists():
+        console.print(f"[bold red]Error:[/] Problem file not found: [yellow]{problem_path}[/]")
+        raise typer.Exit(code=1)
+
+    problem_id = problem_path.stem
+    target_zip = Path(output_zip) if output_zip else Path("output") / f"{problem_id}_export.zip"
+
+    console.print(
+        f"[bold green]Starting End-to-End Pipeline for:[/] [cyan]{problem_path.name}[/]\n"
+        f"[dim]Output ZIP: {target_zip} | Model: {model} (Mock: {mock}) | Test Count: {count}[/]\n"
+    )
+
+    def on_progress(stage: str, rec):
+        if stage == "generating_code":
+            console.print("[cyan]• Step 1/3:[/] Generating C++ solutions, generator, validator, and docs...")
+        elif stage == "running_differential":
+            console.print("[cyan]• Step 2/3:[/] Compiling binaries & running differential testing in Sandbox...")
+        elif stage == "packaging_zip":
+            console.print("[cyan]• Step 3/3:[/] Building reproducibility manifest and packaging export ZIP...")
+        elif stage.startswith("test_") and rec:
+            if rec.status == TestcaseStatus.PASSED:
+                console.print(
+                    f"    [green]✓[/] Test #{rec.test_id:02d} (Seed {rec.seed}): "
+                    f"Validated -> Brute ({rec.brute_duration_ms:.1f}ms) == Opt ({rec.optimized_duration_ms:.1f}ms) -> [bold green]PASS[/]"
+                )
+            elif rec.status == TestcaseStatus.MISMATCH:
+                console.print(
+                    f"    [bold red]✗[/] Test #{rec.test_id:02d} (Seed {rec.seed}): [bold red]MISMATCH FOUND[/]\n"
+                    f"      [dim]{rec.mismatch_detail}[/]"
+                )
+
+    pipeline = EndToEndPipeline()
+    summary = pipeline.run(
+        problem_path=problem_path,
+        output_zip_path=target_zip,
+        model_name=model,
+        temperature=temperature,
+        use_cache=not no_cache,
+        use_mock=mock,
+        count=count,
+        subtask_id=subtask,
+        start_seed=seed,
+        progress_callback=on_progress,
+    )
+
+    # Print summary dashboard table
+    table = Table(title="[bold green]PTG End-to-End Pipeline Summary[/]", show_header=True)
+    table.add_column("Pipeline Metric", style="cyan")
+    table.add_column("Value", style="bold white")
+
+    table.add_row("Problem ID", summary.problem_id)
+    table.add_row("Execution Status", "[bold green]SUCCESS (VERIFIED)[/]" if summary.success else "[bold red]FAILED[/]")
+    table.add_row("Verified Testcases", f"[bold green]{summary.diff_result.passed_cases}/{count}[/]")
+    table.add_row("Export Archive", str(summary.zip_path))
+    table.add_row("Archive Size", f"{summary.zip_size_bytes} bytes" if summary.success else "N/A")
+    table.add_row("Manifest Version", summary.manifest.manifest_version)
+    git_hash_display = summary.manifest.toolchain.git_commit[:12] if summary.manifest.toolchain.git_commit else "N/A"
+    table.add_row("Git Commit", f"[dim]{git_hash_display}[/]")
+    if summary.llm_result:
+        table.add_row("LLM Model", summary.llm_result.model_name)
+        table.add_row("LLM Cache Status", "[green]HIT[/]" if summary.llm_result.is_cached else "[yellow]MISS[/]")
+        table.add_row("Tokens (Prompt / Candidates / Total)", f"{summary.llm_result.usage.prompt_tokens} / {summary.llm_result.usage.candidates_tokens} / {summary.llm_result.usage.total_tokens}")
+        table.add_row("Estimated LLM Cost", f"${summary.llm_result.usage.estimated_cost_usd:.6f} USD")
+    table.add_row("Total Pipeline Elapsed", f"{summary.total_duration_ms:.1f} ms")
+
+    console.print("\n", table)
+
+    if summary.success:
+        console.print(
+            f"\n[bold green]✓ SUCCESS:[/] Export package ready for Themis, VNOJ, CMS, and Polygon!\n"
+            f"  [yellow]Archive File:[/] {summary.zip_path}\n"
+        )
+    else:
+        console.print(
+            f"\n[bold red]✗ PIPELINE FAILED:[/] {summary.error_message}\n"
+        )
+        raise typer.Exit(code=1)
+
+
 if __name__ == "__main__":
     app()

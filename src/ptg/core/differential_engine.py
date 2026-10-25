@@ -231,10 +231,12 @@ class DifferentialEngine:
                     records.append(rec)
                     passed_count += 1
 
-                    # Save verified testcase files if requested
+                    # Save verified testcase files if requested in dedicated testXX/ folders
                     if save_dir:
-                        in_file = save_dir / f"test_{i:02d}{input_ext}"
-                        out_file = save_dir / f"test_{i:02d}{output_ext}"
+                        case_folder = save_dir / f"test{i:02d}"
+                        case_folder.mkdir(parents=True, exist_ok=True)
+                        in_file = case_folder / f"test{i:02d}{input_ext}"
+                        out_file = case_folder / f"test{i:02d}{output_ext}"
                         in_file.write_text(input_data, encoding="utf-8")
                         out_file.write_text(opt_res.stdout, encoding="utf-8")
 

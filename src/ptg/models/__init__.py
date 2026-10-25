@@ -7,6 +7,7 @@ from .llm import (
     LLMUsageRecord,
 )
 from .runner import CompileResult, ExecutionResult, SandboxLimits, Verdict
+from .testcase import DifferentialRunResult, TestCaseRecord, TestcaseStatus
 
 __all__ = [
     "Verdict",
@@ -17,4 +18,7 @@ __all__ = [
     "LLMGenerationRequest",
     "LLMGenerationResult",
     "LLMUsageRecord",
+    "TestcaseStatus",
+    "TestCaseRecord",
+    "DifferentialRunResult",
 ]

@@ -139,7 +139,7 @@ int main() {
 }
 """
 
-SAMPLE_EXPLANATION_MD = """# Two Sum Solution & Complexity Analysis
+SAMPLE_EXPLANATION_MD = r"""# Two Sum Solution & Complexity Analysis
 
 ## Approach
 We are given an array of $N$ integers and a target sum $X$. We must find two distinct 1-based indices $i < j$ such that $A_i + A_j = X$.

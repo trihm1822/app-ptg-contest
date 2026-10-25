@@ -24,6 +24,8 @@ class DifferentialEngine:
         start_seed: int = 1000,
         save_dir: Optional[Path] = None,
         stop_on_mismatch: bool = True,
+        input_ext: str = ".inp",
+        output_ext: str = ".out",
         progress_callback: Optional[Callable[[TestCaseRecord, int, int], None]] = None,
     ) -> DifferentialRunResult:
         """Execute differential testing on a problem directory containing the 4 C++ artifacts.
@@ -231,8 +233,8 @@ class DifferentialEngine:
 
                     # Save verified testcase files if requested
                     if save_dir:
-                        in_file = save_dir / f"test_{i:02d}.in"
-                        out_file = save_dir / f"test_{i:02d}.out"
+                        in_file = save_dir / f"test_{i:02d}{input_ext}"
+                        out_file = save_dir / f"test_{i:02d}{output_ext}"
                         in_file.write_text(input_data, encoding="utf-8")
                         out_file.write_text(opt_res.stdout, encoding="utf-8")
 

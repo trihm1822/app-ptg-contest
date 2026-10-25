@@ -204,6 +204,16 @@ def run_differential(
         "--continue-on-error",
         help="Do not halt immediately on mismatch or validation failure",
     ),
+    input_ext: str = typer.Option(
+        ".inp",
+        "--input-ext",
+        help="File extension for input testcases (default: .inp)",
+    ),
+    output_ext: str = typer.Option(
+        ".out",
+        "--output-ext",
+        help="File extension for output testcases (default: .out)",
+    ),
 ):
     """Run batch differential testing between brute and optimized solutions in Docker Sandbox."""
     from pathlib import Path
@@ -256,6 +266,8 @@ def run_differential(
             start_seed=start_seed,
             save_dir=target_save_dir,
             stop_on_mismatch=not continue_on_error,
+            input_ext=input_ext,
+            output_ext=output_ext,
             progress_callback=on_progress,
         )
 

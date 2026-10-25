@@ -42,6 +42,7 @@ docs/reports/
 # IDE & Editor configs
 .vscode/
 .idea/
+.gemini/
 *.swp
 *.swo
 

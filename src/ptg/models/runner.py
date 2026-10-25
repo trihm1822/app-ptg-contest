@@ -30,19 +30,19 @@ class SandboxLimits(BaseModel):
 class CompileResult(BaseModel):
     """Detailed result of compiling C++ source code inside the sandbox."""
     success: bool
-    exit_code: int
-    stdout: str
-    stderr: str
-    duration_ms: int
+    exit_code: int = 0
+    stdout: str = ""
+    stderr: str = ""
+    duration_ms: int = 0
     binary_name: Optional[str] = None
     error_message: Optional[str] = None
 
 
 class ExecutionResult(BaseModel):
     """Detailed result of executing a compiled binary inside the sandbox."""
-    verdict: Verdict
-    exit_code: int
-    stdout: str
-    stderr: str
-    duration_ms: int
+    verdict: Verdict = Verdict.OK
+    exit_code: int = 0
+    stdout: str = ""
+    stderr: str = ""
+    duration_ms: int = 0
     memory_kb: Optional[int] = None

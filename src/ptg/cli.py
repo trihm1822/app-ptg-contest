@@ -169,5 +169,125 @@ def generate_code(
         console.print(f"  [green]•[/] [bold]{fname}[/]: {fpath} ([dim]{fpath.stat().st_size} bytes[/])")
 
 
+@app.command(name="run-differential")
+def run_differential(
+    problem_dir: str = typer.Option(
+        ...,
+        "--dir",
+        "-d",
+        help="Directory containing brute.cpp, optimized.cpp, generator.cpp, and validator.cpp",
+    ),
+    count: int = typer.Option(
+        5,
+        "--count",
+        "-c",
+        help="Number of testcases to generate and evaluate",
+    ),
+    subtask: int = typer.Option(
+        1,
+        "--subtask",
+        "-s",
+        help="Subtask ID passed to generator (argv[2])",
+    ),
+    start_seed: int = typer.Option(
+        1000,
+        "--seed",
+        help="Initial random seed",
+    ),
+    save_dir: str = typer.Option(
+        None,
+        "--save-dir",
+        help="Directory to save verified testcases (default: <dir>/tests)",
+    ),
+    continue_on_error: bool = typer.Option(
+        False,
+        "--continue-on-error",
+        help="Do not halt immediately on mismatch or validation failure",
+    ),
+):
+    """Run batch differential testing between brute and optimized solutions in Docker Sandbox."""
+    from pathlib import Path
+    from rich.table import Table
+    from ptg.core.differential_engine import DifferentialEngine
+    from ptg.models.testcase import TestcaseStatus
+
+    p_dir = Path(problem_dir)
+    if not p_dir.exists():
+        console.print(f"[bold red]Error:[/] Problem directory not found: [yellow]{p_dir}[/]")
+        raise typer.Exit(code=1)
+
+    target_save_dir = Path(save_dir) if save_dir else p_dir / "tests"
+
+    console.print(
+        f"[cyan]Initiating Differential Testing for:[/] [bold]{p_dir.name}[/] "
+        f"([dim]count={count}, subtask={subtask}, start_seed={start_seed}[/])"
+    )
+
+    def on_progress(rec, current, total):
+        if rec.status == TestcaseStatus.PASSED:
+            console.print(
+                f"  [green]✓[/] Test #{current:02d} (Seed {rec.seed}): "
+                f"Validated -> Brute ({rec.brute_duration_ms:.1f}ms) == Opt ({rec.optimized_duration_ms:.1f}ms) "
+                f"-> [bold green]PASS[/]"
+            )
+        elif rec.status == TestcaseStatus.MISMATCH:
+            console.print(
+                f"  [bold red]✗[/] Test #{current:02d} (Seed {rec.seed}): "
+                f"[bold red]MISMATCH FOUND[/]\n"
+                f"    [dim]{rec.mismatch_detail}[/]"
+            )
+        elif rec.status == TestcaseStatus.VALIDATION_FAILED:
+            console.print(
+                f"  [bold red]✗[/] Test #{current:02d} (Seed {rec.seed}): "
+                f"[bold red]VALIDATION FAILED[/] ({rec.error_message})"
+            )
+        else:
+            console.print(
+                f"  [bold red]✗[/] Test #{current:02d} (Seed {rec.seed}): "
+                f"[bold red]{rec.status.value}[/] ({rec.error_message})"
+            )
+
+    engine = DifferentialEngine()
+    with console.status("[bold yellow]Compiling C++ programs in Docker Sandbox..."):
+        res = engine.run_differential_suite(
+            problem_dir=p_dir,
+            subtask_id=subtask,
+            count=count,
+            start_seed=start_seed,
+            save_dir=target_save_dir,
+            stop_on_mismatch=not continue_on_error,
+            progress_callback=on_progress,
+        )
+
+    # Print summary table
+    table = Table(title="[bold green]Differential Testing Summary[/]", show_header=True)
+    table.add_column("Metric", style="cyan")
+    table.add_column("Value", style="bold white")
+
+    table.add_row("Problem ID", res.problem_id)
+    table.add_row("Total Evaluated", str(res.total_cases))
+    table.add_row("Passed Testcases", f"[green]{res.passed_cases}[/]")
+    table.add_row("Failed Testcases", f"[red]{res.failed_cases}[/]" if res.failed_cases > 0 else "[green]0[/]")
+
+    status_color = "bold green" if res.overall_status == "VERIFIED" else "bold red"
+    table.add_row("Overall Verdict", f"[{status_color}]{res.overall_status}[/]")
+    table.add_row("Total Duration", f"{res.duration_ms:.1f} ms")
+
+    if res.error_message:
+        table.add_row("Fatal Error", f"[red]{res.error_message}[/]")
+
+    console.print(table)
+
+    if res.overall_status == "VERIFIED":
+        console.print(
+            f"\n[bold green]✓ All {res.passed_cases} testcases verified and saved in:[/] [yellow]{target_save_dir}[/]"
+        )
+    else:
+        console.print(
+            f"\n[bold red]✗ Testing halted due to {res.overall_status}. Please review the mismatch/error above.[/]"
+        )
+        raise typer.Exit(code=1)
+
+
 if __name__ == "__main__":
     app()

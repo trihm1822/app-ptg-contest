@@ -70,8 +70,8 @@ def test_pipeline_mock_execution():
             assert "problem.md" in files
             assert "solution/brute.cpp" in files
             assert "solution/optimized.cpp" in files
-            assert "tests/test_01.inp" in files
-            assert "tests/test_01.out" in files
-            assert "tests/test_03.inp" in files
-            assert "tests/test_03.out" in files
+            assert "tests/test01/test01.inp" in files
+            assert "tests/test01/test01.out" in files
+            assert "tests/test03/test03.inp" in files
+            assert "tests/test03/test03.out" in files
             assert "reproducibility.json" in files

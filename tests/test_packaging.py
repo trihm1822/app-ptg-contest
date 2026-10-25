@@ -72,11 +72,12 @@ def test_packaging_engine_export_zip_creation():
         (src_dir / "validator.cpp").write_text("// val", encoding="utf-8")
         (src_dir / "explanation.md").write_text("# Explanation", encoding="utf-8")
 
-        # 3. Setup tests directory
+        # 3. Setup tests directory with subfolder
         tests_dir = base_dir / "tests"
-        tests_dir.mkdir()
-        (tests_dir / "test_01.inp").write_text("10 20\n", encoding="utf-8")
-        (tests_dir / "test_01.out").write_text("30\n", encoding="utf-8")
+        case_01 = tests_dir / "test01"
+        case_01.mkdir(parents=True, exist_ok=True)
+        (case_01 / "test01.inp").write_text("10 20\n", encoding="utf-8")
+        (case_01 / "test01.out").write_text("30\n", encoding="utf-8")
 
         # 4. Construct mock diff result
         diff_res = DifferentialRunResult(
@@ -128,8 +129,8 @@ def test_packaging_engine_export_zip_creation():
             assert "solution/optimized.cpp" in namelist
             assert "generator/generator.cpp" in namelist
             assert "generator/validator.cpp" in namelist
-            assert "tests/test_01.inp" in namelist
-            assert "tests/test_01.out" in namelist
+            assert "tests/test01/test01.inp" in namelist
+            assert "tests/test01/test01.out" in namelist
             assert "reproducibility.json" in namelist
             assert "manifest.json" in namelist
 

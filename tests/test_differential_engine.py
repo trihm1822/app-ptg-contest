@@ -89,10 +89,10 @@ def test_differential_engine_all_passed():
         assert result.failed_cases == 0
 
         # Check saved testcase files (.inp and .out)
-        assert (save_dir / "test_01.inp").exists()
-        assert (save_dir / "test_01.out").exists()
-        assert (save_dir / "test_03.inp").exists()
-        assert (save_dir / "test_03.out").read_text(encoding="utf-8") == "42\n"
+        assert (save_dir / "test01" / "test01.inp").exists()
+        assert (save_dir / "test01" / "test01.out").exists()
+        assert (save_dir / "test03" / "test03.inp").exists()
+        assert (save_dir / "test03" / "test03.out").read_text(encoding="utf-8") == "42\n"
 
 
 def test_differential_engine_validator_failed():

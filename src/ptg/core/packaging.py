@@ -127,8 +127,8 @@ class PackagingEngine:
 
         # Add Testcase Artifacts
         for rec in diff_result.testcases:
-            in_file_name = f"tests/test_{rec.test_id:02d}.inp"
-            out_file_name = f"tests/test_{rec.test_id:02d}.out"
+            in_file_name = f"tests/test{rec.test_id:02d}/test{rec.test_id:02d}.inp"
+            out_file_name = f"tests/test{rec.test_id:02d}/test{rec.test_id:02d}.out"
 
             # Input artifact
             artifacts.append(
@@ -202,11 +202,14 @@ class PackagingEngine:
             if (source_dir / "validator.cpp").exists():
                 zf.write(source_dir / "validator.cpp", arcname="generator/validator.cpp")
 
-            # 5. Verified Tests (.inp and .out)
+            # 5. Verified Tests (.inp and .out in subfolders test01, test02...)
             if tests_dir.exists():
-                for test_file in sorted(tests_dir.iterdir()):
-                    if test_file.is_file() and test_file.suffix in [".inp", ".out", ".in"]:
-                        zf.write(test_file, arcname=f"tests/{test_file.name}")
+                for root, dirs, files in os.walk(tests_dir):
+                    for file in sorted(files):
+                        fpath = Path(root) / file
+                        if fpath.is_file() and fpath.suffix in [".inp", ".out", ".in"]:
+                            rel_arc = fpath.relative_to(tests_dir)
+                            zf.write(fpath, arcname=f"tests/{rel_arc.as_posix()}")
 
             # 6. Manifest files (both reproducibility.json and manifest.json for compatibility)
             zf.writestr("reproducibility.json", manifest_json_bytes)

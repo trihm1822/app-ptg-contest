@@ -11,6 +11,7 @@ This directory maintains the architectural decision records for the **Problem-to
 | [ADR-003](ADR-003-checker-oracle-policy.md) | Oracle Constraints, Checker Policy & Uncertainty Management | **Accepted** | 2026-10-23 | MVP-0 |
 | [ADR-004](ADR-004-sandbox-isolation-boundary.md) | Sandbox Execution Boundary & Compiler Resource Protection | **Accepted** | 2026-10-23 | MVP-0 |
 | [ADR-005](ADR-005-reproducibility-record-schema.md) | Reproducibility Metadata Record & Export Manifest Schema | **Accepted** | 2026-10-23 | MVP-0 |
+| [ADR-006](ADR-006-phase0-security-hardening-and-prng.md) | Sandbox Security Hardening, Unbiased PRNG Contract & Themis Layout Compatibility | **Accepted** | 2026-10-26 | MVP-0 |
 
 ## Decision Rules
 1. **Scope Gating:** ADRs in Phase 0 must focus exclusively on the core generation, sandbox execution, validation, and reproducibility contracts. Web, multi-user, and distributed infrastructure ADRs are deferred to Phase 1.

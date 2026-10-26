@@ -1,12 +1,25 @@
 """Integration tests for the Isolated C++ Runner."""
 
 import shutil
+import subprocess
 import tempfile
 from pathlib import Path
 import pytest
 
 from ptg.core.runner import IsolatedRunner
 from ptg.models.runner import SandboxLimits, Verdict
+
+
+def is_docker_running() -> bool:
+    """Check if Docker daemon is accessible."""
+    try:
+        res = subprocess.run(["docker", "info"], capture_output=True, timeout=3)
+        return res.returncode == 0
+    except Exception:
+        return False
+
+
+pytestmark = pytest.mark.skipif(not is_docker_running(), reason="Docker daemon is not running")
 
 
 @pytest.fixture(scope="module")
@@ -37,6 +50,7 @@ def test_compile_and_run_success(runner, temp_workspace):
     """
     compile_res = runner.compile(cpp_code, binary_name="adder", workspace_dir=temp_workspace)
     assert compile_res.success is True
+    assert compile_res.binary_name == "adder"
     assert compile_res.exit_code == 0
 
     exec_res = runner.execute("adder", workspace_dir=temp_workspace, stdin_data="15 27\n")
@@ -77,31 +91,28 @@ def test_runtime_error(runner, temp_workspace):
 
 
 def test_time_limit_exceeded(runner, temp_workspace):
-    """Test that infinite loop is killed and marked TIME_LIMIT_EXCEEDED."""
+    """Test that infinite loop is killed and reported as TIME_LIMIT_EXCEEDED."""
     loop_cpp = """
-    #include <iostream>
     int main() {
-        volatile long long sum = 0;
-        while (true) {
-            sum++;
-        }
+        while(true) {}
         return 0;
     }
     """
-    compile_res = runner.compile(loop_cpp, binary_name="infinite_loop", workspace_dir=temp_workspace)
+    compile_res = runner.compile(loop_cpp, binary_name="looper", workspace_dir=temp_workspace)
     assert compile_res.success is True
 
-    # Run with a short 2-second timeout
-    exec_res = runner.execute("infinite_loop", workspace_dir=temp_workspace, custom_timeout_sec=2)
+    # Use short 2s timeout for fast testing
+    exec_res = runner.execute("looper", workspace_dir=temp_workspace, custom_timeout_sec=2)
     assert exec_res.verdict == Verdict.TIME_LIMIT_EXCEEDED
-    assert exec_res.exit_code == 137
+    assert exec_res.duration_ms >= 1800  # Ran close to the 2s limit
 
 
 def test_security_network_isolated(runner, temp_workspace):
-    """Test that container cannot open external network connections (--network=none)."""
+    """Test that container cannot access external network (--network=none)."""
     network_cpp = """
     #include <iostream>
     #include <sys/socket.h>
+    #include <netinet/in.h>
     #include <arpa/inet.h>
     #include <unistd.h>
 
@@ -111,7 +122,8 @@ def test_security_network_isolated(runner, temp_workspace):
             std::cout << "SOCKET_FAILED" << std::endl;
             return 1;
         }
-        sockaddr_in serv_addr;
+
+        struct sockaddr_in serv_addr;
         serv_addr.sin_family = AF_INET;
         serv_addr.sin_port = htons(80);
         inet_pton(AF_INET, "8.8.8.8", &serv_addr.sin_addr);
@@ -158,3 +170,30 @@ def test_security_readonly_filesystem(runner, temp_workspace):
     exec_res = runner.execute("fs_test", workspace_dir=temp_workspace, custom_timeout_sec=3)
     assert exec_res.verdict == Verdict.OK
     assert "WRITE_BLOCKED" in exec_res.stdout
+
+
+def test_security_readonly_workspace_mount(runner, temp_workspace):
+    """Test that container execution cannot write to workspace volume mount (SANDBOX-01: :ro)."""
+    write_workspace_cpp = """
+    #include <iostream>
+    #include <fstream>
+
+    int main() {
+        std::ofstream file("/workspace/malicious_overwrite.txt");
+        if (!file.is_open()) {
+            std::cout << "WORKSPACE_WRITE_BLOCKED" << std::endl;
+            return 0; // expected: read-only workspace prevents writing
+        }
+        file << "hacked";
+        file.close();
+        std::cout << "WORKSPACE_WRITE_SUCCESS" << std::endl;
+        return 1;
+    }
+    """
+    compile_res = runner.compile(write_workspace_cpp, binary_name="ws_test", workspace_dir=temp_workspace)
+    assert compile_res.success is True
+
+    exec_res = runner.execute("ws_test", workspace_dir=temp_workspace, custom_timeout_sec=3)
+    assert exec_res.verdict == Verdict.OK
+    assert "WORKSPACE_WRITE_BLOCKED" in exec_res.stdout
+    assert not (temp_workspace / "malicious_overwrite.txt").exists()

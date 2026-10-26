@@ -52,6 +52,8 @@ class EndToEndPipeline:
         count: int = 5,
         subtask_id: int = 1,
         start_seed: int = 1000,
+        strict_whitespace: bool = False,
+        themis_classic: bool = False,
         progress_callback: Optional[Callable[[str, Optional[TestCaseRecord]], None]] = None,
     ) -> PipelineExecutionSummary:
         """Execute full pipeline: Problem MD -> LLM Generation -> Sandbox Diff Testing -> Package ZIP.
@@ -104,6 +106,8 @@ class EndToEndPipeline:
             start_seed=start_seed,
             save_dir=tests_dir,
             stop_on_mismatch=True,
+            strict_whitespace=strict_whitespace,
+            themis_classic=themis_classic,
             progress_callback=on_diff_progress,
         )
 
@@ -152,6 +156,7 @@ class EndToEndPipeline:
             llm_result=llm_res,
             start_seed=start_seed,
             subtask_id=subtask_id,
+            themis_classic=themis_classic,
         )
 
         # Write manifest locally in output directory for inspection

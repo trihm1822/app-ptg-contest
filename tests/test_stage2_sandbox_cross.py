@@ -1,5 +1,6 @@
 """Cross-stage integration test: Verifying Stage 2 generated C++ code inside Stage 1 Docker Sandbox."""
 
+import subprocess
 import tempfile
 from pathlib import Path
 
@@ -8,6 +9,18 @@ from ptg.core.code_generator import CodeGenerator
 from ptg.core.runner import IsolatedRunner
 from ptg.integrations.llm.mock import MockLLMProvider
 from ptg.models.runner import Verdict
+
+
+def is_docker_running() -> bool:
+    """Check if Docker daemon is accessible."""
+    try:
+        res = subprocess.run(["docker", "info"], capture_output=True, timeout=3)
+        return res.returncode == 0
+    except Exception:
+        return False
+
+
+pytestmark = pytest.mark.skipif(not is_docker_running(), reason="Docker daemon is not running")
 
 
 @pytest.fixture
@@ -54,23 +67,27 @@ def test_generated_cpp_artifacts_in_docker_sandbox(runner):
         comp_val = runner.compile(val_code, binary_name="validator", workspace_dir=workspace)
         assert comp_val.success is True, f"validator.cpp failed to compile: {comp_val.error_message}"
 
-        # 6. Execute generator: argv[1]=42 (seed), argv[2]=1 (subtask)
-        exec_gen = runner.execute("generator", args=["42", "1"], workspace_dir=workspace)
-        assert exec_gen.verdict == Verdict.OK
-        assert len(exec_gen.stdout.strip()) > 0
-        generated_input = exec_gen.stdout
+        # 6. Execute Generator (seed=12345, subtask=1)
+        gen_res = runner.execute("generator", workspace_dir=workspace, args=["12345", "1"])
+        assert gen_res.verdict == Verdict.OK
+        assert len(gen_res.stdout.strip()) > 0
+        input_data = gen_res.stdout
 
-        # 7. Feed generator output to validator stdin
-        exec_val = runner.execute("validator", stdin_data=generated_input, workspace_dir=workspace)
-        assert exec_val.verdict == Verdict.OK, f"Validator rejected generated input: {exec_val.stderr}"
+        # 7. Execute Validator with generated input
+        val_res = runner.execute("validator", workspace_dir=workspace, stdin_data=input_data)
+        assert val_res.verdict == Verdict.OK
 
-        # 8. Feed generator output to brute and optimized solutions and compare outputs
-        exec_brute = runner.execute("brute", stdin_data=generated_input, workspace_dir=workspace)
-        assert exec_brute.verdict == Verdict.OK
+        # 8. Execute Brute solution with generated input
+        brute_res = runner.execute("brute", workspace_dir=workspace, stdin_data=input_data)
+        assert brute_res.verdict == Verdict.OK
+        assert len(brute_res.stdout.strip()) > 0
 
-        exec_opt = runner.execute("optimized", stdin_data=generated_input, workspace_dir=workspace)
-        assert exec_opt.verdict == Verdict.OK
+        # 9. Execute Optimized solution with generated input
+        opt_res = runner.execute("optimized", workspace_dir=workspace, stdin_data=input_data)
+        assert opt_res.verdict == Verdict.OK
+        assert len(opt_res.stdout.strip()) > 0
 
-        # Both should find a valid answer
-        assert exec_brute.stdout.strip() != ""
-        assert exec_opt.stdout.strip() != ""
+        # 10. Cross-compare outputs
+        assert brute_res.stdout.strip() == opt_res.stdout.strip(), (
+            f"Outputs mismatch! Brute: '{brute_res.stdout}', Opt: '{opt_res.stdout}'"
+        )

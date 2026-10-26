@@ -12,6 +12,7 @@ class Verdict(str, Enum):
     RUNTIME_ERROR = "RUNTIME_ERROR"
     TIME_LIMIT_EXCEEDED = "TIME_LIMIT_EXCEEDED"
     MEMORY_LIMIT_EXCEEDED = "MEMORY_LIMIT_EXCEEDED"
+    RESOURCE_LIMIT_EXCEEDED = "RESOURCE_LIMIT_EXCEEDED"
     OUTPUT_LIMIT_EXCEEDED = "OUTPUT_LIMIT_EXCEEDED"
     INFRASTRUCTURE_ERROR = "INFRASTRUCTURE_ERROR"
 
@@ -46,3 +47,4 @@ class ExecutionResult(BaseModel):
     stderr: str = ""
     duration_ms: int = 0
     memory_kb: Optional[int] = None
+    oom_killed: bool = False

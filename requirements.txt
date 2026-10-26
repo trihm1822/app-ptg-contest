@@ -5,6 +5,14 @@ typer>=0.15.0
 rich>=13.9.0
 python-dotenv>=1.0.0
 
+# Database & Foundation (Phase 1 - Milestone 1.1)
+sqlalchemy[asyncio]>=2.0.25
+asyncpg>=0.29.0
+alembic>=1.13.1
+pydantic-settings>=2.2.1
+aiosqlite>=0.19.0
+
 # Testing & Quality
 pytest>=8.3.0
 pytest-timeout>=2.3.0
+pytest-asyncio>=0.23.0

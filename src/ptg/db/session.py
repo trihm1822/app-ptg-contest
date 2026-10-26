@@ -24,11 +24,24 @@ def get_async_engine(database_url: Optional[str] = None) -> AsyncEngine:
         if url.startswith("sqlite://") and not url.startswith("sqlite+aiosqlite://"):
             url = url.replace("sqlite://", "sqlite+aiosqlite://")
 
+        # SQLite optimization: use NullPool for file databases to prevent locks, StaticPool for in-memory
+        engine_kwargs = {
+            "echo": settings.DATABASE_ECHO,
+            "future": True,
+        }
+        if "sqlite" in url:
+            if ":memory:" in url:
+                from sqlalchemy.pool import StaticPool
+                engine_kwargs["poolclass"] = StaticPool
+            else:
+                from sqlalchemy.pool import NullPool
+                engine_kwargs["poolclass"] = NullPool
+        else:
+            engine_kwargs["pool_pre_ping"] = True
+
         _engine = create_async_engine(
             url,
-            echo=settings.DATABASE_ECHO,
-            future=True,
-            pool_pre_ping=True if "sqlite" not in url else False,
+            **engine_kwargs,
         )
     return _engine
 

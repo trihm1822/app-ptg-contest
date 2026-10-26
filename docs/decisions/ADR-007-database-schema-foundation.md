@@ -49,6 +49,13 @@ Key design challenges addressed:
 - All relationships explicitly specify `lazy="selectin"` to prevent `MissingGreenlet` errors under async I/O.
 - The `samples` field uses `JSON().with_variant(JSONB, "postgresql")`, allowing native PostgreSQL JSONB indexing in production while remaining fully testable on SQLite in-memory.
 
+### 2.6. Migration Runner: Async Driver Wrapper (`connection.run_sync`) vs. Pure Sync Driver
+- **Context:** The team evaluated using a purely synchronous Alembic configuration (`alembic init`) vs. the async engine template (`alembic init -t async`). Pure sync Alembic avoids event loop constructs, but mandates installing and maintaining a second, synchronous PostgreSQL driver (e.g., `psycopg2-binary` or `psycopg`) alongside `asyncpg`, as well as managing separate synchronous connection strings.
+- **Decision:** We use the standard SQLAlchemy 2.0 async Alembic pattern:
+  - `alembic/env.py` instantiates an async connection via `create_async_engine(url, poolclass=pool.NullPool)` using the application's unified `asyncpg` / `aiosqlite` connection string.
+  - The actual schema inspection and DDL execution inside `do_run_migrations` are run via `await connection.run_sync(do_run_migrations)`.
+  - This provides the best of both worlds: zero redundant synchronous driver dependencies, zero connection URL duplication, and strictly sequential, synchronous execution of DDL operations inside the `run_sync` context without event loop collision risks.
+
 ---
 
 ## 3. Consequences

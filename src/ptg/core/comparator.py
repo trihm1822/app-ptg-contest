@@ -1,4 +1,4 @@
-"""Output comparator with whitespace and token-by-token normalization per ADR-003."""
+"""Output comparator with whitespace and token-by-token normalization per ADR-003 and ADR-006."""
 
 from typing import List, Optional, Tuple
 
@@ -21,17 +21,41 @@ def compare_outputs(
     expected: str,
     actual: str,
     token_mode: bool = True,
+    strict_bytes: bool = False,
 ) -> Tuple[bool, Optional[str]]:
-    """Compare two program outputs complying with ADR-003.
+    """Compare two program outputs complying with ADR-003 and ADR-006.
 
     Args:
         expected: Oracle / brute-force output string.
         actual: Candidate / optimized output string.
-        token_mode: If True, compares token-by-token. If False, compares line-by-line.
+        token_mode: If True, compares token-by-token (default for Competitive Programming). If False, compares line-by-line.
+        strict_bytes: If True, bypasses normalization and enforces strict byte-for-byte equality.
 
     Returns:
         Tuple of (is_match: bool, mismatch_detail: Optional[str]).
     """
+    if strict_bytes:
+        if expected == actual:
+            return True, None
+        min_len = min(len(expected), len(actual))
+        for idx in range(min_len):
+            if expected[idx] != actual[idx]:
+                exp_char = repr(expected[idx])
+                act_char = repr(actual[idx])
+                return False, (
+                    f"Strict byte mismatch at char offset #{idx}: "
+                    f"expected {exp_char} (ASCII {ord(expected[idx])}), "
+                    f"got {act_char} (ASCII {ord(actual[idx])})."
+                )
+        if len(expected) != len(actual):
+            return False, (
+                f"Strict length mismatch: expected {len(expected)} chars, got {len(actual)} chars. "
+                f"Expected trailing content: {repr(expected[min_len:min_len+20])}"
+                if len(expected) > min_len else
+                f"Unexpected extra content: {repr(actual[min_len:min_len+20])}"
+            )
+        return False, "Strict byte outputs differ"
+
     if token_mode:
         exp_tokens = tokenize_output(expected)
         act_tokens = tokenize_output(actual)

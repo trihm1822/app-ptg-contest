@@ -1,4 +1,4 @@
-"""Unit tests for Normalized Token Comparator complying with ADR-003."""
+"""Unit tests for Normalized Token Comparator complying with ADR-003 and ADR-006."""
 
 from ptg.core.comparator import compare_outputs, normalize_lines, tokenize_output
 
@@ -61,3 +61,17 @@ def test_compare_outputs_line_mode():
     is_match, detail = compare_outputs(exp, act, token_mode=False)
     assert is_match is False
     assert "Line mismatch at line #2" in detail
+
+
+def test_compare_outputs_strict_bytes_mode():
+    """In strict mode, trailing space difference must fail."""
+    out1 = "1 2 3\n"
+    out2 = "1 2 3 \n"  # trailing space
+    # In standard token mode, they match
+    match_token, _ = compare_outputs(out1, out2, token_mode=True, strict_bytes=False)
+    assert match_token is True
+
+    # In strict bytes mode, they must report mismatch
+    match_strict, detail = compare_outputs(out1, out2, strict_bytes=True)
+    assert match_strict is False
+    assert "Strict byte mismatch" in detail

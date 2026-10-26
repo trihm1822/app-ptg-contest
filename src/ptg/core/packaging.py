@@ -65,8 +65,9 @@ class PackagingEngine:
         llm_result: Optional[LLMGenerationResult] = None,
         start_seed: int = 1000,
         subtask_id: int = 1,
+        themis_classic: bool = False,
     ) -> ReproducibilityManifest:
-        """Construct the ReproducibilityManifest adhering strictly to ADR-005."""
+        """Construct the ReproducibilityManifest adhering strictly to ADR-005 and ADR-006."""
         statement_content = problem_statement_path.read_text(encoding="utf-8")
         statement_hash = compute_text_sha256(statement_content)
 
@@ -127,8 +128,12 @@ class PackagingEngine:
 
         # Add Testcase Artifacts
         for rec in diff_result.testcases:
-            in_file_name = f"tests/test{rec.test_id:02d}/test{rec.test_id:02d}.inp"
-            out_file_name = f"tests/test{rec.test_id:02d}/test{rec.test_id:02d}.out"
+            if themis_classic:
+                in_file_name = f"tests/Test{rec.test_id:02d}/Test{rec.test_id:02d}.INP"
+                out_file_name = f"tests/Test{rec.test_id:02d}/Test{rec.test_id:02d}.OUT"
+            else:
+                in_file_name = f"tests/test{rec.test_id:02d}/test{rec.test_id:02d}.inp"
+                out_file_name = f"tests/test{rec.test_id:02d}/test{rec.test_id:02d}.out"
 
             # Input artifact
             artifacts.append(
@@ -202,12 +207,12 @@ class PackagingEngine:
             if (source_dir / "validator.cpp").exists():
                 zf.write(source_dir / "validator.cpp", arcname="generator/validator.cpp")
 
-            # 5. Verified Tests (.inp and .out in subfolders test01, test02...)
+            # 5. Verified Tests (.inp and .out in subfolders test01, test02... or Test01, Test02...)
             if tests_dir.exists():
                 for root, dirs, files in os.walk(tests_dir):
                     for file in sorted(files):
                         fpath = Path(root) / file
-                        if fpath.is_file() and fpath.suffix in [".inp", ".out", ".in"]:
+                        if fpath.is_file() and fpath.suffix.lower() in [".inp", ".out", ".in"]:
                             rel_arc = fpath.relative_to(tests_dir)
                             zf.write(fpath, arcname=f"tests/{rel_arc.as_posix()}")
 

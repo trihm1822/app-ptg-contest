@@ -26,6 +26,8 @@ class DifferentialEngine:
         stop_on_mismatch: bool = True,
         input_ext: str = ".inp",
         output_ext: str = ".out",
+        strict_whitespace: bool = False,
+        themis_classic: bool = False,
         progress_callback: Optional[Callable[[TestCaseRecord, int, int], None]] = None,
     ) -> DifferentialRunResult:
         """Execute differential testing on a problem directory containing the 4 C++ artifacts.
@@ -35,8 +37,12 @@ class DifferentialEngine:
             subtask_id: Subtask / test group identifier (passed to generator as argv[2]).
             count: Number of testcases to generate and evaluate.
             start_seed: Base random seed.
-            save_dir: Optional directory to store verified .in and .out files.
+            save_dir: Optional directory to store verified .inp and .out files.
             stop_on_mismatch: If True, aborts the run upon first mismatch per ADR-003.
+            input_ext: Extension for testcase inputs (default: .inp).
+            output_ext: Extension for testcase outputs (default: .out).
+            strict_whitespace: If True, enforces strict byte-by-byte equality without tokenization.
+            themis_classic: If True, formats test folders and files as Test01/Test01.INP and Test01.OUT.
             progress_callback: Optional callback(record, current_idx, total_count) for UI updates.
 
         Returns:
@@ -128,7 +134,7 @@ class DifferentialEngine:
                         seed=seed,
                         status=TestcaseStatus.VALIDATION_FAILED,
                         input_text=input_data,
-                        error_message=f"Validator rejected input: {val_res.stderr or 'Non-zero exit'}",
+                        error_message=f"Validator rejected input: {val_res.stderr.strip() or 'Invalid testcase constraint violated'}",
                     )
                     records.append(rec)
                     failed_count += 1
@@ -136,11 +142,10 @@ class DifferentialEngine:
                         progress_callback(rec, i, count)
                     if stop_on_mismatch:
                         overall_status = "VALIDATION_FAILED"
-                        fatal_error = f"Validator failed on test #{i} (seed={seed})"
                         break
                     continue
 
-                # Step C: Run brute solution (Oracle)
+                # Step C: Run brute-force oracle solution
                 brute_res = self.runner.execute(
                     "brute",
                     stdin_data=input_data,
@@ -151,21 +156,20 @@ class DifferentialEngine:
                         test_id=i,
                         subtask_id=subtask_id,
                         seed=seed,
-                        status=TestcaseStatus.TIMEOUT if brute_res.verdict == Verdict.TLE else TestcaseStatus.RUNTIME_ERROR,
+                        status=TestcaseStatus.ORACLE_FAILED,
                         input_text=input_data,
-                        brute_duration_ms=brute_res.duration_ms,
-                        error_message=f"Brute failed with verdict {brute_res.verdict}: {brute_res.stderr}",
+                        error_message=f"Oracle brute solution crashed ({brute_res.verdict}): {brute_res.stderr}",
                     )
                     records.append(rec)
                     failed_count += 1
                     if progress_callback:
                         progress_callback(rec, i, count)
                     if stop_on_mismatch:
-                        overall_status = "RUNTIME_ERROR"
+                        overall_status = "ORACLE_FAILED"
                         break
                     continue
 
-                # Step D: Run optimized solution
+                # Step D: Run candidate optimized solution
                 opt_res = self.runner.execute(
                     "optimized",
                     stdin_data=input_data,
@@ -176,24 +180,28 @@ class DifferentialEngine:
                         test_id=i,
                         subtask_id=subtask_id,
                         seed=seed,
-                        status=TestcaseStatus.TIMEOUT if opt_res.verdict == Verdict.TLE else TestcaseStatus.RUNTIME_ERROR,
+                        status=TestcaseStatus.CANDIDATE_FAILED,
                         input_text=input_data,
                         brute_output=brute_res.stdout,
-                        brute_duration_ms=brute_res.duration_ms,
-                        optimized_duration_ms=opt_res.duration_ms,
-                        error_message=f"Optimized failed with verdict {opt_res.verdict}: {opt_res.stderr}",
+                        error_message=f"Optimized solution failed ({opt_res.verdict}): {opt_res.stderr}",
                     )
                     records.append(rec)
                     failed_count += 1
                     if progress_callback:
                         progress_callback(rec, i, count)
                     if stop_on_mismatch:
-                        overall_status = "RUNTIME_ERROR"
+                        overall_status = "CANDIDATE_FAILED"
                         break
                     continue
 
-                # Step E: Compare outputs (ADR-003)
-                is_match, diff_detail = compare_outputs(brute_res.stdout, opt_res.stdout)
+                # Step E: Compare outputs via Comparator (ADR-003, ADR-006)
+                is_match, diff_detail = compare_outputs(
+                    brute_res.stdout,
+                    opt_res.stdout,
+                    token_mode=True,
+                    strict_bytes=strict_whitespace,
+                )
+
                 if not is_match:
                     rec = TestCaseRecord(
                         test_id=i,
@@ -231,12 +239,15 @@ class DifferentialEngine:
                     records.append(rec)
                     passed_count += 1
 
-                    # Save verified testcase files if requested in dedicated testXX/ folders
+                    # Save verified testcase files if requested
                     if save_dir:
-                        case_folder = save_dir / f"test{i:02d}"
+                        folder_name = f"Test{i:02d}" if themis_classic else f"test{i:02d}"
+                        in_name = f"Test{i:02d}.INP" if themis_classic else f"test{i:02d}{input_ext}"
+                        out_name = f"Test{i:02d}.OUT" if themis_classic else f"test{i:02d}{output_ext}"
+                        case_folder = save_dir / folder_name
                         case_folder.mkdir(parents=True, exist_ok=True)
-                        in_file = case_folder / f"test{i:02d}{input_ext}"
-                        out_file = case_folder / f"test{i:02d}{output_ext}"
+                        in_file = case_folder / in_name
+                        out_file = case_folder / out_name
                         in_file.write_text(input_data, encoding="utf-8")
                         out_file.write_text(opt_res.stdout, encoding="utf-8")
 

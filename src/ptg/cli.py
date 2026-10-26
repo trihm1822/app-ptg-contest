@@ -214,6 +214,16 @@ def run_differential(
         "--output-ext",
         help="File extension for output testcases (default: .out)",
     ),
+    strict_whitespace: bool = typer.Option(
+        False,
+        "--strict-whitespace",
+        help="Enforce strict byte-by-byte equality without whitespace normalization",
+    ),
+    themis_classic: bool = typer.Option(
+        False,
+        "--themis-classic",
+        help="Export testcases in classic Themis format Test01/Test01.INP",
+    ),
 ):
     """Run batch differential testing between brute and optimized solutions in Docker Sandbox."""
     from pathlib import Path
@@ -268,6 +278,8 @@ def run_differential(
             stop_on_mismatch=not continue_on_error,
             input_ext=input_ext,
             output_ext=output_ext,
+            strict_whitespace=strict_whitespace,
+            themis_classic=themis_classic,
             progress_callback=on_progress,
         )
 
@@ -354,6 +366,16 @@ def run_all(
         "--mock",
         help="Use deterministic offline Mock LLM provider without calling remote API",
     ),
+    strict_whitespace: bool = typer.Option(
+        False,
+        "--strict-whitespace",
+        help="Enforce strict byte-by-byte equality without whitespace normalization",
+    ),
+    themis_classic: bool = typer.Option(
+        False,
+        "--themis-classic",
+        help="Export testcases in classic Themis format Test01/Test01.INP",
+    ),
 ):
     """Execute complete end-to-end pipeline: Ingest MD -> LLM Gen -> Sandbox Diff -> Package ZIP."""
     from pathlib import Path
@@ -404,6 +426,8 @@ def run_all(
         count=count,
         subtask_id=subtask,
         start_seed=seed,
+        strict_whitespace=strict_whitespace,
+        themis_classic=themis_classic,
         progress_callback=on_progress,
     )
 
